@@ -1,0 +1,15 @@
+.DS_Store
+.clasp.json
+.env
+.env.*
+!.env.example
+node_modules/
+coverage/
+dist/
+tmp/
+*.log
+*.csv
+!examples/*.example.csv
+*.xlsx
+credentials*.json
+token*.json
