@@ -1,95 +1,95 @@
 # YouTube Channel Content Monitor
 
-YouTube Channel Content Monitor is a Google Apps Script project that records newly published public videos from configured YouTube channels in Google Sheets.
+Google Apps Script와 Google Sheets를 이용해 등록한 YouTube 채널의 신규 공개 영상을 자동으로 수집하는 모니터링 도구입니다.
 
-It is designed for unattended operation. The monitor keeps a per-channel checkpoint, prevents duplicate video IDs, retries transient failures after 5, 15, and 30 minutes, hands overlapping runs off safely, and alerts administrators only when an incident reaches a final failure.
+단순히 새 영상을 가져오는 데 그치지 않고, 채널별 마지막 정상 수집 시점을 보존하고 영상 ID 중복을 방지합니다. 일시적인 오류가 발생하면 5분·15분·30분 뒤에 다시 시도하며, 최종 실패로 판단된 경우에만 관리자에게 알림을 보냅니다.
 
-## Features
+## 주요 기능
 
-- YouTube Data API v3 channel and uploads-playlist lookup.
-- Per-channel checkpoints that advance only after a successful scan.
-- Video ID deduplication before any row is appended.
-- Retryable error classification for timeouts, HTTP 429, and HTTP 5xx responses.
-- One-time retry triggers after approximately 5, 15, and 30 minutes.
-- Script-wide locking and a deferred regular-run handoff.
-- Final-failure email alerts with duplicate-alert suppression.
-- Spreadsheet-backed channel, video, and event-log state.
-- A **Retry failed channels** administrator menu action.
-- A daily API quota guard stored in Script Properties.
+- YouTube Data API v3를 이용해 채널과 업로드 재생목록을 조회합니다.
+- 채널별 마지막 정상 수집 시점을 저장하며, 수집이 끝까지 성공한 경우에만 시점을 갱신합니다.
+- 이미 저장된 영상 ID를 확인해 같은 영상을 두 번 등록하지 않습니다.
+- 네트워크 시간 초과, HTTP 429, HTTP 5xx 오류를 일시 오류로 분류합니다.
+- 일시 오류는 약 5분·15분·30분 뒤에 각각 한 번씩 다시 시도합니다.
+- 전역 잠금과 후속 실행 인계를 이용해 여러 실행이 동시에 같은 데이터를 처리하지 않도록 합니다.
+- 재시도를 모두 소진하거나 영구 오류가 발생하면 관리자에게 최종 실패 메일을 한 번만 보냅니다.
+- 채널 상태, 수집 영상, 실행 로그를 Google Sheets에서 확인할 수 있습니다.
+- 스프레드시트 메뉴의 **실패 채널 다시 시도** 기능으로 복구 작업을 직접 실행할 수 있습니다.
+- Script Properties에 기록한 일일 API 사용량을 기준으로 할당량 보호 상한을 적용합니다.
 
-## Project layout
+## 폴더 구성
 
 ```text
-src/                         Apps Script source files
-tests/                       Node.js unit tests with Apps Script mocks
-scripts/static-check.js      Syntax, manifest, and secret-pattern checks
-examples/                    Anonymous configuration examples
+src/                         Apps Script 소스 파일
+tests/                       Apps Script 모의 객체를 이용한 Node.js 단위 테스트
+scripts/static-check.js      구문·manifest·비밀정보 패턴 검사
+examples/                    실제 정보가 없는 익명 설정 예시
 appsscript.json              Apps Script manifest
-SETUP.md                     Installation and verification guide
+SETUP.md                     설치와 확인 방법
 ```
 
-## Quick start
+## 빠른 시작
 
-1. Create an empty Google Spreadsheet and a bound Apps Script project.
-2. Copy the files in `src/` and `appsscript.json` into that project. With `clasp`, copy `.clasp.json.example` to `.clasp.json`, replace `YOUR_SCRIPT_ID`, and run `clasp push`.
-3. In Apps Script project settings, add the Script Properties described in [SETUP.md](./SETUP.md).
-4. Run `initializeYouTubeMonitor` once and authorize the requested scopes.
-5. Add channel URLs or handles to the `Channels` sheet, then set `Enabled` to `TRUE`.
-6. Run `runYouTubeMonitorNow` for a manual verification.
-7. Run `installYouTubeMonitorTriggers` to install the regular schedule.
+1. 빈 Google Spreadsheet와 연결된 Apps Script 프로젝트를 만듭니다.
+2. `src/`의 파일과 `appsscript.json`을 Apps Script 프로젝트에 복사합니다. `clasp`를 사용한다면 `.clasp.json.example`을 `.clasp.json`으로 복사하고 `YOUR_SCRIPT_ID`를 실제 Script ID로 바꾼 뒤 `clasp push`를 실행합니다.
+3. [SETUP.md](./SETUP.md)를 참고해 Script Properties를 등록합니다.
+4. Apps Script 편집기에서 `initializeYouTubeMonitor`를 한 번 실행하고 권한을 승인합니다.
+5. `Channels` 시트에 채널 URL 또는 핸들을 입력하고 `Enabled`를 `TRUE`로 설정합니다.
+6. `runYouTubeMonitorNow`를 실행해 신규 영상 수집과 중복 방지를 확인합니다.
+7. `installYouTubeMonitorTriggers`를 실행해 정규 수집 일정을 설치합니다.
 
-No API key, spreadsheet ID, email address, channel identity, or deployment ID is included in this repository.
+이 저장소에는 실제 API 키, Spreadsheet ID, 이메일 주소, 채널 정보, Apps Script ID 또는 배포 ID가 포함되어 있지 않습니다.
 
-## Local verification
+## 로컬 검증
 
-Node.js 20 or newer is required. The project has no runtime or development package dependencies.
+Node.js 20 이상이 필요하며 별도의 production·development 패키지 의존성은 없습니다.
 
 ```bash
-npm install
+npm ci
 npm run check
 ```
 
-`npm install` only validates the package metadata and creates a local lockfile when needed. `npm run check` runs the static audit and all unit tests.
+`npm run check`는 Apps Script 구문, 필수 OAuth 범위, 비밀정보 패턴을 검사한 뒤 전체 단위 테스트를 실행합니다.
 
-## Data model
+## 스프레드시트 구성
 
-The setup function creates three sheets.
+초기화 함수는 다음 세 개의 시트를 생성합니다.
 
-- `Channels` stores channel identity, the latest successful checkpoint, retry state, and alert state.
-- `Videos` stores one row per unique YouTube video ID.
-- `Monitor Log` stores operational events without API keys or recipient addresses.
+- `Channels`에는 채널 정보, 마지막 정상 수집 시점, 재시도 상태와 알림 상태를 저장합니다.
+- `Videos`에는 고유한 YouTube 영상 ID별로 한 행을 저장합니다.
+- `Monitor Log`에는 API 키나 알림 수신자 주소를 제외한 실행 기록을 저장합니다.
 
-The monitor never deletes sheet data. Removing a channel from monitoring is done by setting `Enabled` to `FALSE`.
+이 도구는 시트의 데이터를 자동으로 삭제하지 않습니다. 채널 수집을 중단하려면 `Channels` 시트에서 해당 행의 `Enabled`를 `FALSE`로 바꿉니다.
 
-## Reliability model
+## 장애 복구 방식
 
 ```text
-regular trigger
-  -> acquire script lock
-  -> scan enabled channels from the oldest checkpoint
-  -> append unseen public videos
-  -> advance each successful channel checkpoint
-  -> persist transient failures and schedule the earliest retry
-  -> send one alert when an incident becomes a final failure
+정규 트리거 실행
+  -> 전역 잠금 획득
+  -> 마지막 정상 수집 시점이 오래된 채널부터 확인
+  -> 아직 저장하지 않은 공개 영상 추가
+  -> 정상 처리된 채널의 수집 시점 갱신
+  -> 일시 오류의 상태 저장과 가장 이른 재시도 예약
+  -> 최종 실패로 확정된 경우에만 관리자 알림 발송
 ```
 
-If a regular run overlaps another run, a single deferred regular trigger is scheduled. A retry run that cannot acquire the lock leaves its channel state intact so the active run can schedule the next due retry.
+다른 실행이 진행 중이라 정규 실행이 잠금을 얻지 못하면 후속 정규 실행을 한 번만 예약합니다. 재시도 실행이 잠금을 얻지 못한 경우에도 채널 상태를 지우지 않고 다음 실행으로 인계합니다.
 
-## Security notes
+## 보안 유의사항
 
-- Store `YOUTUBE_API_KEY` and alert recipients only in Script Properties.
-- Restrict the Spreadsheet and Apps Script project to trusted administrators.
-- Review OAuth scopes before authorization.
-- Do not commit `.clasp.json`, credentials, exports, or real configuration examples.
-- API keys identify a Google Cloud project; use API restrictions and a quota appropriate for your environment.
+- `YOUTUBE_API_KEY`와 알림 수신자는 반드시 Script Properties에 저장합니다.
+- Spreadsheet와 Apps Script 프로젝트는 필요한 관리자에게만 공유합니다.
+- 권한을 승인하기 전에 `appsscript.json`의 OAuth 범위를 확인합니다.
+- `.clasp.json`, 인증 파일, 데이터 내보내기 파일과 실제 설정 예시는 커밋하지 않습니다.
+- YouTube API 키에는 사용 API와 호출 환경에 맞는 제한을 적용합니다.
 
-## Limitations
+## 제한 사항
 
-- Trigger execution timing is controlled by Google Apps Script and is approximate.
-- YouTube Data API quota usage depends on the number of channels and API calls.
-- The monitor records public uploads returned by a channel's uploads playlist. Private, deleted, or unavailable videos are not recorded.
-- Local tests cannot prove OAuth, trigger delivery, MailApp delivery, or quota behavior in a specific Google account.
+- 시간 기반 트리거의 실제 실행 시각은 Google Apps Script 환경에 따라 다소 늦어질 수 있습니다.
+- API 사용량은 등록한 채널 수와 조회 횟수에 따라 달라집니다.
+- 채널의 업로드 재생목록에서 확인되는 공개 영상만 저장합니다. 비공개·삭제·접근 제한 영상은 저장하지 않습니다.
+- 로컬 테스트만으로 특정 Google 계정의 OAuth 승인, 트리거 실행, MailApp 발송과 실제 API 할당량을 보증할 수는 없습니다.
 
-## License
+## 라이선스
 
-MIT. See [LICENSE](./LICENSE).
+MIT License를 적용합니다. 자세한 내용은 [LICENSE](./LICENSE)를 확인해 주세요.
